@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>GHL Image Konfigurator V3</title>
+    <title>GHL Image Konfigurator V3.1 (Auto-URL)</title>
     <style>
         body { font-family: sans-serif; padding: 20px; background: #f4f4f4; color: #333; }
         .main-wrapper { display: flex; gap: 20px; flex-wrap: wrap; }
@@ -45,6 +45,9 @@
         
         h2 { margin-top: 0; color: #333; }
         .hint { font-size: 12px; color: #666; margin-bottom: 20px; display: block; line-height: 1.4; background: #eef; padding: 10px; border-radius: 6px;}
+        
+        /* Style für das deaktiverte Feld */
+        #serverUrl { background-color: #f0f0f0; color: #555; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -53,13 +56,13 @@
         <div class="controls">
             <h2>Bild Konfigurator</h2>
             <span class="hint">
-                <strong>Schritt 1:</strong> Render & Bild URL eintragen.<br>
+                <strong>Schritt 1:</strong> Bild URL eintragen.<br>
                 <strong>Schritt 2:</strong> Ins Bild klicken für Position.<br>
                 <strong>Schritt 3:</strong> Code kopieren.
             </span>
 
-            <label>1. Render App URL:</label>
-            <input type="text" id="serverUrl" placeholder="https://dein-app.onrender.com" oninput="updateLink()">
+            <label>1. Render App URL (FIXIERT):</label>
+            <input type="text" id="serverUrl" value="https://rosario-ghl-images.onrender.com" readonly>
             
             <label>2. Hintergrundbild URL (aus GHL):</label>
             <input type="text" id="bgUrl" placeholder="https://..." onchange="loadImage()">
@@ -131,9 +134,11 @@
     <script>
         const img = document.getElementById('target-img');
         const marker = document.getElementById('marker');
+        // Die feste Server URL
+        const RENDER_URL = "https://rosario-ghl-images.onrender.com";
 
         window.onload = function() {
-            if(localStorage.getItem('renderUrl')) document.getElementById('serverUrl').value = localStorage.getItem('renderUrl');
+            // Die Render URL muss nicht mehr geladen werden, da sie fest ist
             if(localStorage.getItem('bgUrl')) {
                 document.getElementById('bgUrl').value = localStorage.getItem('bgUrl');
                 loadImage();
@@ -157,8 +162,6 @@
         });
 
         function updatePreview() {
-            localStorage.setItem('renderUrl', document.getElementById('serverUrl').value);
-
             const x = document.getElementById('posX').value;
             const y = document.getElementById('posY').value;
             const size = document.getElementById('fontSize').value;
@@ -167,11 +170,10 @@
             const casing = document.getElementById('textCase').value;
             const font = document.getElementById('fontName').value;
 
-            // JS Vorschau der Text-Transformation (simuliert was der Server macht)
+            // JS Vorschau der Text-Transformation
             if(casing === 'upper') text = text.toUpperCase();
             else if(casing === 'lower') text = text.toLowerCase();
             else if(casing === 'title') {
-                // Einfache Title-Case Simulation für JS Vorschau
                 text = text.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
             }
 
@@ -196,7 +198,8 @@
         }
 
         function updateLink() {
-            const server = document.getElementById('serverUrl').value.replace(/\/$/, "");
+            // Jetzt wird RENDER_URL direkt verwendet!
+            const server = RENDER_URL.replace(/\/$/, ""); 
             const bg = encodeURIComponent(document.getElementById('bgUrl').value);
             const x = document.getElementById('posX').value;
             const y = document.getElementById('posY').value;
@@ -205,9 +208,16 @@
             const font = document.getElementById('fontName').value;
             const casing = document.getElementById('textCase').value;
             
-            if(!server || !bg) return;
+            if(!bg) return;
 
-            const finalUrl = `${server}/generate?bg=${bg}&x=${x}&y=${y}&size=${size}&color=${color}&font=${font}&case=${casing}&text={{ contact.first_name }}`;
+            // Hier verwenden wir das GHL Custom Field Merge-Tag für den Hintergrund:
+            const dynamicBgUrl = "{{ custom_fields.DEIN_CUSTOM_FIELD_NAME }}"; 
+            
+            // Wichtig: Wir ersetzen den festen bg-Parameter durch das GHL Merge-Tag,
+            // sodass der Link dann in GHL funktioniert und das Custom Field ausgelesen wird.
+            const finalUrl = `${server}/generate?bg=${dynamicBgUrl}&x=${x}&y=${y}&size=${size}&color=${color}&font=${font}&case=${casing}&text={{ contact.first_name }}`;
+            
+            // Hinweis für den Nutzer: Er muss das Custom Field noch anpassen
             document.getElementById('resultLink').value = `<img src="${finalUrl}" width="100%" alt="Hallo {{ contact.first_name }}">`;
         }
     </script>
