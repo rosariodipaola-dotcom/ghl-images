@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>GHL Image Konfigurator V5 (Zentrierung)</title>
+    <title>GHL Image Konfigurator V5 (Zentrierung & Box-Fix)</title>
     <style>
-        /* ... (Bestehende Styles bleiben unverändert) ... */
         body { font-family: sans-serif; padding: 20px; background: #f4f4f4; color: #333; }
         .main-wrapper { display: flex; gap: 20px; flex-wrap: wrap; }
         
+        /* Linke Spalte */
         .controls { 
             width: 340px; 
             background: white; 
@@ -16,6 +16,7 @@
             height: fit-content;
         }
         
+        /* Rechte Spalte */
         #preview-area { 
             position: relative; 
             display: inline-block; 
@@ -32,6 +33,7 @@
             white-space: nowrap;
             line-height: 1;
             transform: translateY(0); 
+            z-index: 10; /* WICHTIG: Text muss über der Box sein */
         }
         
         .preview-box {
@@ -40,8 +42,10 @@
             border-radius: 4px;
             pointer-events: none;
             display: none; 
+            z-index: 5; /* WICHTIG: Box muss unter dem Text sein */
         }
 
+        /* Formular UI */
         label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: bold; display: block; margin-top: 12px; color: #777; }
         input[type="text"], input[type="number"], select, button { width: 100%; padding: 10px; box-sizing: border-box; margin-top: 5px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
         input[type="color"] { width: calc(100% - 2px); height: 38px; padding: 0; border: none; margin-top: 5px; }
@@ -58,7 +62,6 @@
         .checkbox-container { display: flex; align-items: center; margin-top: 10px; }
         .checkbox-container input { width: auto; margin-right: 8px; }
         .checkbox-container label { margin-top: 0; margin-bottom: 0; text-transform: none; font-weight: normal; font-size: 14px; }
-        /* Ende Styles */
     </style>
 </head>
 <body>
@@ -178,7 +181,6 @@
         const RENDER_URL = "https://rosario-ghl-images.onrender.com";
 
         window.onload = function() {
-            // ... (Local Storage Laden) ...
             if(localStorage.getItem('bgUrl')) {
                 document.getElementById('bgUrl').value = localStorage.getItem('bgUrl');
                 loadImage();
@@ -188,7 +190,7 @@
             if(localStorage.getItem('boxPadding')) document.getElementById('boxPadding').value = localStorage.getItem('boxPadding');
             if(localStorage.getItem('alignment')) document.getElementById('alignment').value = localStorage.getItem('alignment');
             
-            togglePositionInputs(); // Deaktiviert X/Y, wenn Zentrierung aktiv ist
+            togglePositionInputs();
             updatePreview(); 
         }
 
@@ -200,16 +202,16 @@
             document.getElementById('posY').disabled = isDisabled;
             
             if (isDisabled) {
-                // Setze X/Y auf "Zentrierung" in der Anzeige
+                // Wenn Zentrierung aktiv: X/Y auf "Auto" und Felder dimmen
                 document.getElementById('posX').value = "Auto";
                 document.getElementById('posY').value = "Auto";
                 positionControls.style.opacity = '0.5';
             } else {
-                // Wenn der User von Zentrierung zurückschaltet, lade seine letzten Werte oder den Standard
-                if (document.getElementById('posX').value === "Auto") {
-                    document.getElementById('posX').value = localStorage.getItem('lastX') || 50;
-                    document.getElementById('posY').value = localStorage.getItem('lastY') || 50;
-                }
+                // Wenn Manuell aktiv: Letzte manuelle Klick-Werte laden
+                const lastX = localStorage.getItem('lastX') || 50;
+                const lastY = localStorage.getItem('lastY') || 50;
+                document.getElementById('posX').value = lastX;
+                document.getElementById('posY').value = lastY;
                 positionControls.style.opacity = '1';
             }
 
@@ -233,6 +235,7 @@
                 const y = Math.round(e.clientY - rect.top);
                 document.getElementById('posX').value = x;
                 document.getElementById('posY').value = y;
+                // FIX: Speichern der manuellen Klick-Position für den Wechsel
                 localStorage.setItem('lastX', x);
                 localStorage.setItem('lastY', y);
                 updatePreview();
@@ -240,7 +243,6 @@
         });
 
         function updatePreview() {
-            // ... (Bestehende Logik zur Textformatierung) ...
             const x = parseFloat(document.getElementById('posX').value);
             const y = parseFloat(document.getElementById('posY').value);
             const size = parseFloat(document.getElementById('fontSize').value);
@@ -277,6 +279,8 @@
 
             // Box/Text Position im Konfigurator (NUR VORSCHAU-BERECHNUNG)
             if (img.complete && img.naturalWidth !== 0) {
+                marker.style.display = 'block';
+
                 const imgWidth = img.clientWidth;
                 const imgHeight = img.clientHeight;
 
@@ -360,10 +364,8 @@
             
             let finalUrl = `${server}/generate?bg=${dynamicBgUrl}&x=${x}&y=${y}&size=${size}&color=${color}&font=${font}&case=${casing}&text=${firstNameTag}`;
 
-            // Wenn Zentrierung aktiv, fügen wir den align-Parameter hinzu und entfernen X/Y aus dem Link, da sie nicht verwendet werden
             if (alignMode !== 'none') {
                 finalUrl += `&align=${alignMode}`;
-                // Optional: Entferne X/Y aus dem Link, um Verwirrung zu vermeiden, da der Server sie ignoriert
                 finalUrl = finalUrl.replace(`&x=${x}&y=${y}`, ''); 
             }
             

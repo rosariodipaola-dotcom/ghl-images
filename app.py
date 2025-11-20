@@ -66,8 +66,8 @@ def generate():
         box_color = tuple(int(box_hex_color[i:i+2], 16) for i in (0, 2, 4))
         box_padding = int(request.args.get('box_padding', 10))
         
-        # NEU: Parameter für Ausrichtung
-        align_mode = request.args.get('align', 'none') # none, center_h, center_v, center_hv
+        # Parameter für Ausrichtung
+        align_mode = request.args.get('align', 'none')
         
     except Exception as e:
         print(f"Parameter parse error: {e}")
@@ -93,6 +93,7 @@ def generate():
         
         # Textgröße messen
         img_width, img_height = img.size
+        # Nutzt (0, 0) als Referenz, um die Breite/Höhe des Textes zu bekommen
         bbox_ref = draw.textbbox((0, 0), text, font=font)
         text_width = bbox_ref[2] - bbox_ref[0]
         text_height = bbox_ref[3] - bbox_ref[1]
@@ -103,25 +104,19 @@ def generate():
         
         # Horizontal zentrieren
         if align_mode in ['center_h', 'center_hv']:
-            # Die gesamte Breite des Elements (Text + optionales Padding der Box)
             element_width = text_width + (2 * box_padding) if show_box else text_width
-            # Berechnung der linken Kante des Elements
             left_edge_x = (img_width - element_width) // 2
-            # Die Textposition ist linke Kante + Padding (wenn Box aktiv)
             x_pos = left_edge_x + box_padding if show_box else left_edge_x
 
         # Vertikal zentrieren
         if align_mode in ['center_v', 'center_hv']:
-            # Die gesamte Höhe des Elements (Text + optionales Padding der Box)
             element_height = text_height + (2 * box_padding) if show_box else text_height
-            # Berechnung der oberen Kante des Elements
             top_edge_y = (img_height - element_height) // 2
-            # Die Textposition ist obere Kante + Padding (wenn Box aktiv)
             y_pos = top_edge_y + box_padding if show_box else top_edge_y
 
         # Box zeichnen, wenn aktiviert
         if show_box:
-            # Box-Koordinaten neu berechnen (Text Startpunkt minus Padding)
+            # Box-Koordinaten (Text Startpunkt minus Padding)
             box_x0 = x_pos - box_padding
             box_y0 = y_pos - box_padding
             box_x1 = x_pos + text_width + box_padding
