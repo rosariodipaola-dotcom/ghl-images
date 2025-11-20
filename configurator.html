@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>GHL Image Konfigurator V3.1 (Auto-URL)</title>
+    <title>GHL Image Konfigurator V4 (Text-Box)</title>
     <style>
         body { font-family: sans-serif; padding: 20px; background: #f4f4f4; color: #333; }
         .main-wrapper { display: flex; gap: 20px; flex-wrap: wrap; }
@@ -32,12 +32,23 @@
             pointer-events: none; 
             white-space: nowrap;
             line-height: 1;
+            /* Der Marker wird jetzt durch die Box ersetzt, aber wir lassen ihn für Fallbacks */
             transform: translateY(0); 
+        }
+        
+        /* Die Box im Konfigurator */
+        .preview-box {
+            position: absolute;
+            background-color: rgba(255,255,255,0.7); /* Standard semi-transparent */
+            border-radius: 4px;
+            pointer-events: none;
+            display: none; /* Erstmal versteckt */
         }
 
         /* Formular UI */
         label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: bold; display: block; margin-top: 12px; color: #777; }
-        input, select, button { width: 100%; padding: 10px; box-sizing: border-box; margin-top: 5px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        input[type="text"], input[type="number"], select, button { width: 100%; padding: 10px; box-sizing: border-box; margin-top: 5px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        input[type="color"] { width: calc(100% - 2px); height: 38px; padding: 0; border: none; margin-top: 5px; }
         textarea { width: 100%; height: 90px; font-family: monospace; font-size: 11px; margin-top: 20px; border-radius: 6px; border: 1px solid #ccc; padding: 8px;}
         
         .row { display: flex; gap: 10px; }
@@ -46,8 +57,12 @@
         h2 { margin-top: 0; color: #333; }
         .hint { font-size: 12px; color: #666; margin-bottom: 20px; display: block; line-height: 1.4; background: #eef; padding: 10px; border-radius: 6px;}
         
-        /* Style für das deaktiverte Feld */
         #serverUrl { background-color: #f0f0f0; color: #555; cursor: not-allowed; }
+
+        /* Checkbox-Stil */
+        .checkbox-container { display: flex; align-items: center; margin-top: 10px; }
+        .checkbox-container input { width: auto; margin-right: 8px; }
+        .checkbox-container label { margin-top: 0; margin-bottom: 0; text-transform: none; font-weight: normal; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -118,7 +133,24 @@
 
             <label>Textfarbe:</label>
             <input type="color" id="fontColor" value="#000000" oninput="updatePreview()">
-            
+
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+
+            <div class="checkbox-container">
+                <input type="checkbox" id="showBox" onchange="updatePreview()">
+                <label for="showBox">Rechteckige Box unter Text</label>
+            </div>
+            <div class="row">
+                <div class="col">
+                    <label>Box Farbe:</label>
+                    <input type="color" id="boxColor" value="#ffffff" oninput="updatePreview()">
+                </div>
+                <div class="col">
+                    <label>Box Polsterung (px):</label>
+                    <input type="number" id="boxPadding" value="10" oninput="updatePreview()">
+                </div>
+            </div>
+
             <label>Fertiger Code für GHL Email:</label>
             <textarea id="resultLink" onclick="this.select()"></textarea>
         </div>
@@ -126,23 +158,28 @@
         <div>
             <div id="preview-area">
                 <img id="target-img" src="" alt="Bild lädt...">
-                <div id="marker" class="marker"></div>
-            </div>
+                <div id="preview-box-element" class="preview-box"></div>
+                <div id="marker" class="marker"></div> </div>
         </div>
     </div>
 
     <script>
         const img = document.getElementById('target-img');
         const marker = document.getElementById('marker');
-        // Die feste Server URL
-        const RENDER_URL = "https://rosario-ghl-images.onrender.com";
+        const previewBoxElement = document.getElementById('preview-box-element');
+        const RENDER_URL = "https://rosario-ghl-images.onrender.com"; // Deine Render URL
 
         window.onload = function() {
-            // Die Render URL muss nicht mehr geladen werden, da sie fest ist
             if(localStorage.getItem('bgUrl')) {
                 document.getElementById('bgUrl').value = localStorage.getItem('bgUrl');
                 loadImage();
             }
+            // Box-Einstellungen aus LocalStorage laden
+            if(localStorage.getItem('showBox')) document.getElementById('showBox').checked = (localStorage.getItem('showBox') === 'true');
+            if(localStorage.getItem('boxColor')) document.getElementById('boxColor').value = localStorage.getItem('boxColor');
+            if(localStorage.getItem('boxPadding')) document.getElementById('boxPadding').value = localStorage.getItem('boxPadding');
+            
+            updatePreview(); // Initialer Aufruf
         }
 
         function loadImage() {
@@ -162,13 +199,18 @@
         });
 
         function updatePreview() {
-            const x = document.getElementById('posX').value;
-            const y = document.getElementById('posY').value;
-            const size = document.getElementById('fontSize').value;
+            const x = parseFloat(document.getElementById('posX').value);
+            const y = parseFloat(document.getElementById('posY').value);
+            const size = parseFloat(document.getElementById('fontSize').value);
             const color = document.getElementById('fontColor').value;
             let text = document.getElementById('testName').value;
             const casing = document.getElementById('textCase').value;
             const font = document.getElementById('fontName').value;
+            
+            // Box-Parameter
+            const showBox = document.getElementById('showBox').checked;
+            const boxColor = document.getElementById('boxColor').value;
+            const boxPadding = parseFloat(document.getElementById('boxPadding').value);
 
             // JS Vorschau der Text-Transformation
             if(casing === 'upper') text = text.toUpperCase();
@@ -177,9 +219,9 @@
                 text = text.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
             }
 
+            // Marker (Text) Style
             let fontFamily = 'Arial, sans-serif';
             let fontWeight = 'normal';
-
             if(font === 'marker') fontFamily = '"Comic Sans MS", sans-serif';
             if(font.includes('bold')) fontWeight = 'bold';
             if(font === 'roboto_bold' || font === 'roboto_reg') fontFamily = 'Roboto, Arial';
@@ -194,11 +236,41 @@
             marker.style.fontFamily = fontFamily;
             marker.style.fontWeight = fontWeight;
 
+            // Box im Konfigurator zeichnen (Näherung)
+            if (showBox) {
+                const tempDiv = document.createElement('div');
+                tempDiv.style.fontFamily = fontFamily;
+                tempDiv.style.fontSize = size + 'px';
+                tempDiv.style.fontWeight = fontWeight;
+                tempDiv.style.position = 'absolute'; // Wichtig für Breite/Höhe
+                tempDiv.style.whiteSpace = 'nowrap';
+                tempDiv.textContent = text;
+                document.body.appendChild(tempDiv); // Temporär hinzufügen, um Maße zu bekommen
+                
+                const textWidth = tempDiv.offsetWidth;
+                const textHeight = tempDiv.offsetHeight;
+                document.body.removeChild(tempDiv);
+
+                previewBoxElement.style.display = 'block';
+                previewBoxElement.style.left = (x - boxPadding) + 'px';
+                previewBoxElement.style.top = (y - boxPadding) + 'px';
+                previewBoxElement.style.width = (textWidth + (2 * boxPadding)) + 'px';
+                previewBoxElement.style.height = (textHeight + (2 * boxPadding)) + 'px';
+                previewBoxElement.style.backgroundColor = boxColor;
+            } else {
+                previewBoxElement.style.display = 'none';
+            }
+
+            // Einstellungen im LocalStorage speichern
+            localStorage.setItem('showBox', showBox);
+            localStorage.setItem('boxColor', boxColor);
+            localStorage.setItem('boxPadding', boxPadding);
+
+
             updateLink();
         }
 
         function updateLink() {
-            // Jetzt wird RENDER_URL direkt verwendet!
             const server = RENDER_URL.replace(/\/$/, ""); 
             const bg = encodeURIComponent(document.getElementById('bgUrl').value);
             const x = document.getElementById('posX').value;
@@ -208,17 +280,24 @@
             const font = document.getElementById('fontName').value;
             const casing = document.getElementById('textCase').value;
             
+            // Box Parameter für den Link
+            const showBox = document.getElementById('showBox').checked;
+            const boxColor = document.getElementById('boxColor').value.replace('#', '');
+            const boxPadding = document.getElementById('boxPadding').value;
+            
             if(!bg) return;
 
-            // Hier verwenden wir das GHL Custom Field Merge-Tag für den Hintergrund:
-            const dynamicBgUrl = "{{ custom_fields.DEIN_CUSTOM_FIELD_NAME }}"; 
+            // Die GHL Custom Field Merge-Tags
+            const dynamicBgUrl = "{{contact.custom_fields.hintergrund_url}}"; // ACHTUNG: Hier 'hintergrund_url' anpassen, falls anders benannt
+            const firstNameTag = "{{ contact.first_name }}";
             
-            // Wichtig: Wir ersetzen den festen bg-Parameter durch das GHL Merge-Tag,
-            // sodass der Link dann in GHL funktioniert und das Custom Field ausgelesen wird.
-            const finalUrl = `${server}/generate?bg=${dynamicBgUrl}&x=${x}&y=${y}&size=${size}&color=${color}&font=${font}&case=${casing}&text={{ contact.first_name }}`;
+            let finalUrl = `${server}/generate?bg=${dynamicBgUrl}&x=${x}&y=${y}&size=${size}&color=${color}&font=${font}&case=${casing}&text=${firstNameTag}`;
+
+            if (showBox) {
+                finalUrl += `&box=true&box_color=${boxColor}&box_padding=${boxPadding}`;
+            }
             
-            // Hinweis für den Nutzer: Er muss das Custom Field noch anpassen
-            document.getElementById('resultLink').value = `<img src="${finalUrl}" width="100%" alt="Hallo {{ contact.first_name }}">`;
+            document.getElementById('resultLink').value = `<img src="${finalUrl}" width="100%" alt="Hallo ${firstNameTag}">`;
         }
     </script>
 </body>
