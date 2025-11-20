@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>GHL Image Konfigurator V4 (Text-Box)</title>
+    <title>GHL Image Konfigurator V5 (Zentrierung)</title>
     <style>
+        /* ... (Bestehende Styles bleiben unverändert) ... */
         body { font-family: sans-serif; padding: 20px; background: #f4f4f4; color: #333; }
         .main-wrapper { display: flex; gap: 20px; flex-wrap: wrap; }
         
-        /* Linke Spalte */
         .controls { 
             width: 340px; 
             background: white; 
@@ -16,7 +16,6 @@
             height: fit-content;
         }
         
-        /* Rechte Spalte */
         #preview-area { 
             position: relative; 
             display: inline-block; 
@@ -32,20 +31,17 @@
             pointer-events: none; 
             white-space: nowrap;
             line-height: 1;
-            /* Der Marker wird jetzt durch die Box ersetzt, aber wir lassen ihn für Fallbacks */
             transform: translateY(0); 
         }
         
-        /* Die Box im Konfigurator */
         .preview-box {
             position: absolute;
-            background-color: rgba(255,255,255,0.7); /* Standard semi-transparent */
+            background-color: rgba(255,255,255,0.7); 
             border-radius: 4px;
             pointer-events: none;
-            display: none; /* Erstmal versteckt */
+            display: none; 
         }
 
-        /* Formular UI */
         label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: bold; display: block; margin-top: 12px; color: #777; }
         input[type="text"], input[type="number"], select, button { width: 100%; padding: 10px; box-sizing: border-box; margin-top: 5px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
         input[type="color"] { width: calc(100% - 2px); height: 38px; padding: 0; border: none; margin-top: 5px; }
@@ -59,10 +55,10 @@
         
         #serverUrl { background-color: #f0f0f0; color: #555; cursor: not-allowed; }
 
-        /* Checkbox-Stil */
         .checkbox-container { display: flex; align-items: center; margin-top: 10px; }
         .checkbox-container input { width: auto; margin-right: 8px; }
         .checkbox-container label { margin-top: 0; margin-bottom: 0; text-transform: none; font-weight: normal; font-size: 14px; }
+        /* Ende Styles */
     </style>
 </head>
 <body>
@@ -72,7 +68,7 @@
             <h2>Bild Konfigurator</h2>
             <span class="hint">
                 <strong>Schritt 1:</strong> Bild URL eintragen.<br>
-                <strong>Schritt 2:</strong> Ins Bild klicken für Position.<br>
+                <strong>Schritt 2:</strong> Position festlegen.<br>
                 <strong>Schritt 3:</strong> Code kopieren.
             </span>
 
@@ -119,8 +115,18 @@
                      <input type="number" id="fontSize" value="60" oninput="updatePreview()">
                 </div>
             </div>
-
-            <div class="row">
+            
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+            
+            <label>Ausrichtung / Zentrierung:</label>
+            <select id="alignment" onchange="togglePositionInputs(); updatePreview();">
+                <option value="none" selected>Manuell (Klicken/X/Y)</option>
+                <option value="center_h">Horizontal zentriert</option>
+                <option value="center_v">Vertikal zentriert</option>
+                <option value="center_hv">Horizontal & Vertikal zentriert</option>
+            </select>
+            
+            <div class="row" id="position-controls">
                 <div class="col">
                     <label>X-Position:</label>
                     <input type="number" id="posX" value="50" oninput="updatePreview()">
@@ -159,7 +165,8 @@
             <div id="preview-area">
                 <img id="target-img" src="" alt="Bild lädt...">
                 <div id="preview-box-element" class="preview-box"></div>
-                <div id="marker" class="marker"></div> </div>
+                <div id="marker" class="marker"></div>
+            </div>
         </div>
     </div>
 
@@ -167,19 +174,46 @@
         const img = document.getElementById('target-img');
         const marker = document.getElementById('marker');
         const previewBoxElement = document.getElementById('preview-box-element');
-        const RENDER_URL = "https://rosario-ghl-images.onrender.com"; // Deine Render URL
+        const positionControls = document.getElementById('position-controls');
+        const RENDER_URL = "https://rosario-ghl-images.onrender.com";
 
         window.onload = function() {
+            // ... (Local Storage Laden) ...
             if(localStorage.getItem('bgUrl')) {
                 document.getElementById('bgUrl').value = localStorage.getItem('bgUrl');
                 loadImage();
             }
-            // Box-Einstellungen aus LocalStorage laden
             if(localStorage.getItem('showBox')) document.getElementById('showBox').checked = (localStorage.getItem('showBox') === 'true');
             if(localStorage.getItem('boxColor')) document.getElementById('boxColor').value = localStorage.getItem('boxColor');
             if(localStorage.getItem('boxPadding')) document.getElementById('boxPadding').value = localStorage.getItem('boxPadding');
+            if(localStorage.getItem('alignment')) document.getElementById('alignment').value = localStorage.getItem('alignment');
             
-            updatePreview(); // Initialer Aufruf
+            togglePositionInputs(); // Deaktiviert X/Y, wenn Zentrierung aktiv ist
+            updatePreview(); 
+        }
+
+        // NEUE FUNKTION: Deaktiviert manuelle Felder bei Zentrierung
+        function togglePositionInputs() {
+            const alignMode = document.getElementById('alignment').value;
+            const isDisabled = alignMode !== 'none';
+            document.getElementById('posX').disabled = isDisabled;
+            document.getElementById('posY').disabled = isDisabled;
+            
+            if (isDisabled) {
+                // Setze X/Y auf "Zentrierung" in der Anzeige
+                document.getElementById('posX').value = "Auto";
+                document.getElementById('posY').value = "Auto";
+                positionControls.style.opacity = '0.5';
+            } else {
+                // Wenn der User von Zentrierung zurückschaltet, lade seine letzten Werte oder den Standard
+                if (document.getElementById('posX').value === "Auto") {
+                    document.getElementById('posX').value = localStorage.getItem('lastX') || 50;
+                    document.getElementById('posY').value = localStorage.getItem('lastY') || 50;
+                }
+                positionControls.style.opacity = '1';
+            }
+
+            localStorage.setItem('alignment', alignMode);
         }
 
         function loadImage() {
@@ -192,13 +226,21 @@
         }
 
         img.addEventListener('click', function(e) {
-            const rect = img.getBoundingClientRect();
-            document.getElementById('posX').value = Math.round(e.clientX - rect.left);
-            document.getElementById('posY').value = Math.round(e.clientY - rect.top);
-            updatePreview();
+            const alignMode = document.getElementById('alignment').value;
+            if (alignMode === 'none') {
+                const rect = img.getBoundingClientRect();
+                const x = Math.round(e.clientX - rect.left);
+                const y = Math.round(e.clientY - rect.top);
+                document.getElementById('posX').value = x;
+                document.getElementById('posY').value = y;
+                localStorage.setItem('lastX', x);
+                localStorage.setItem('lastY', y);
+                updatePreview();
+            }
         });
 
         function updatePreview() {
+            // ... (Bestehende Logik zur Textformatierung) ...
             const x = parseFloat(document.getElementById('posX').value);
             const y = parseFloat(document.getElementById('posY').value);
             const size = parseFloat(document.getElementById('fontSize').value);
@@ -206,11 +248,10 @@
             let text = document.getElementById('testName').value;
             const casing = document.getElementById('textCase').value;
             const font = document.getElementById('fontName').value;
-            
-            // Box-Parameter
             const showBox = document.getElementById('showBox').checked;
             const boxColor = document.getElementById('boxColor').value;
             const boxPadding = parseFloat(document.getElementById('boxPadding').value);
+            const alignMode = document.getElementById('alignment').value;
 
             // JS Vorschau der Text-Transformation
             if(casing === 'upper') text = text.toUpperCase();
@@ -229,43 +270,70 @@
             if(font === 'elegant') fontFamily = 'serif';
 
             marker.innerText = text;
-            marker.style.left = x + 'px';
-            marker.style.top = y + 'px';
             marker.style.fontSize = size + 'px';
             marker.style.color = color;
             marker.style.fontFamily = fontFamily;
             marker.style.fontWeight = fontWeight;
 
-            // Box im Konfigurator zeichnen (Näherung)
-            if (showBox) {
+            // Box/Text Position im Konfigurator (NUR VORSCHAU-BERECHNUNG)
+            if (img.complete && img.naturalWidth !== 0) {
+                const imgWidth = img.clientWidth;
+                const imgHeight = img.clientHeight;
+
                 const tempDiv = document.createElement('div');
+                // Kopiere relevante Stile für korrekte Breitenmessung
                 tempDiv.style.fontFamily = fontFamily;
                 tempDiv.style.fontSize = size + 'px';
                 tempDiv.style.fontWeight = fontWeight;
-                tempDiv.style.position = 'absolute'; // Wichtig für Breite/Höhe
+                tempDiv.style.position = 'absolute'; 
                 tempDiv.style.whiteSpace = 'nowrap';
                 tempDiv.textContent = text;
-                document.body.appendChild(tempDiv); // Temporär hinzufügen, um Maße zu bekommen
+                document.body.appendChild(tempDiv);
                 
                 const textWidth = tempDiv.offsetWidth;
                 const textHeight = tempDiv.offsetHeight;
                 document.body.removeChild(tempDiv);
 
-                previewBoxElement.style.display = 'block';
-                previewBoxElement.style.left = (x - boxPadding) + 'px';
-                previewBoxElement.style.top = (y - boxPadding) + 'px';
-                previewBoxElement.style.width = (textWidth + (2 * boxPadding)) + 'px';
-                previewBoxElement.style.height = (textHeight + (2 * boxPadding)) + 'px';
-                previewBoxElement.style.backgroundColor = boxColor;
+                let finalX = x;
+                let finalY = y;
+                let elementWidth = textWidth;
+                let elementHeight = textHeight;
+
+                if (showBox) {
+                    elementWidth += 2 * boxPadding;
+                    elementHeight += 2 * boxPadding;
+                }
+                
+                // Zentrierungslogik für die Vorschau (basiert auf CSS-Breiten)
+                if (alignMode.includes('center_h')) {
+                    const leftEdgeX = (imgWidth - elementWidth) / 2;
+                    finalX = leftEdgeX + (showBox ? boxPadding : 0);
+                }
+                if (alignMode.includes('center_v')) {
+                    const topEdgeY = (imgHeight - elementHeight) / 2;
+                    finalY = topEdgeY + (showBox ? boxPadding : 0);
+                }
+
+                // Marker positionieren
+                marker.style.left = finalX + 'px';
+                marker.style.top = finalY + 'px';
+
+                // Box im Konfigurator positionieren
+                if (showBox) {
+                    previewBoxElement.style.display = 'block';
+                    previewBoxElement.style.left = (finalX - boxPadding) + 'px';
+                    previewBoxElement.style.top = (finalY - boxPadding) + 'px';
+                    previewBoxElement.style.width = (elementWidth) + 'px';
+                    previewBoxElement.style.height = (elementHeight) + 'px';
+                    previewBoxElement.style.backgroundColor = boxColor;
+                } else {
+                    previewBoxElement.style.display = 'none';
+                }
             } else {
+                // Wenn Bild noch nicht geladen ist, Marker verstecken
+                marker.style.display = 'none';
                 previewBoxElement.style.display = 'none';
             }
-
-            // Einstellungen im LocalStorage speichern
-            localStorage.setItem('showBox', showBox);
-            localStorage.setItem('boxColor', boxColor);
-            localStorage.setItem('boxPadding', boxPadding);
-
 
             updateLink();
         }
@@ -279,20 +347,26 @@
             const color = document.getElementById('fontColor').value.replace('#', '');
             const font = document.getElementById('fontName').value;
             const casing = document.getElementById('textCase').value;
+            const alignMode = document.getElementById('alignment').value;
             
-            // Box Parameter für den Link
             const showBox = document.getElementById('showBox').checked;
             const boxColor = document.getElementById('boxColor').value.replace('#', '');
             const boxPadding = document.getElementById('boxPadding').value;
             
             if(!bg) return;
 
-            // Die GHL Custom Field Merge-Tags
-            const dynamicBgUrl = "{{contact.custom_fields.hintergrund_url}}"; // ACHTUNG: Hier 'hintergrund_url' anpassen, falls anders benannt
+            const dynamicBgUrl = "{{contact.custom_fields.hintergrund_url}}"; 
             const firstNameTag = "{{ contact.first_name }}";
             
             let finalUrl = `${server}/generate?bg=${dynamicBgUrl}&x=${x}&y=${y}&size=${size}&color=${color}&font=${font}&case=${casing}&text=${firstNameTag}`;
 
+            // Wenn Zentrierung aktiv, fügen wir den align-Parameter hinzu und entfernen X/Y aus dem Link, da sie nicht verwendet werden
+            if (alignMode !== 'none') {
+                finalUrl += `&align=${alignMode}`;
+                // Optional: Entferne X/Y aus dem Link, um Verwirrung zu vermeiden, da der Server sie ignoriert
+                finalUrl = finalUrl.replace(`&x=${x}&y=${y}`, ''); 
+            }
+            
             if (showBox) {
                 finalUrl += `&box=true&box_color=${boxColor}&box_padding=${boxPadding}`;
             }
